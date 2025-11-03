@@ -1,0 +1,58 @@
+services:
+  database:
+    image: mysql:9.5.0
+    volumes:
+      - ./mysql/volume/:/var/lib/mysql
+      - ./mysql/scripts/:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_DATABASE: fullcycle
+      MYSQL_ROOT_PASSWORD: example
+    expose:
+      - 3306
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "--password=example",
+        ]
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - server-network
+
+  server:
+    build:
+      context: node/
+    volumes:
+      - ./node/:/usr/src/app
+      - /usr/src/app/node_modules
+    restart: always
+    networks:
+      - server-network
+    depends_on:
+      database:
+        condition: service_healthy
+
+  reverse_proxy:
+    build:
+      context: nginx/
+    ports:
+      - 8080:80
+    restart: always
+    networks:
+      - server-network
+    depends_on:
+      - server
+
+networks:
+  server-network:
+    driver: bridge
